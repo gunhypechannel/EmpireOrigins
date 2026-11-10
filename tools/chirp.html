@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hero Voice Studio — Google</title>
+<style>
+:root{--bg:#0d0a07;--card:#1c140d;--line:#4a3522;--text:#f3e6d6;--mute:#c9b296;--acc:#e8963a;--ok:#7fe0a4;--bad:#ff9b85}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(120% 70% at 50% 0%,#2a1c10,var(--bg) 70%);color:var(--text);font:15px/1.45 system-ui,-apple-system,sans-serif;padding:16px}
+main{max-width:760px;margin:0 auto}h1{font:700 24px Georgia,serif;margin:6px 0 2px}h2{font:700 17px Georgia,serif;margin:0 0 8px}
+p.sub{color:var(--mute);margin:0 0 16px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 14px}
+label{display:block;font-size:13px;color:var(--mute);margin:0 0 4px}input,select,button{font:inherit;color:var(--text);background:#120d08;border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px}
+input,select{width:100%}button{cursor:pointer;background:#2d2116}button.primary{background:linear-gradient(180deg,#c8762a,#8a4a14);border-color:#e8963a;font-weight:700}button:disabled{opacity:.45}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}.row>button{flex:0 0 auto}.hero{display:grid;grid-template-columns:96px 1fr auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid #2e2116}.hero:first-of-type{border-top:0}
+.hero b{font:700 15px Georgia,serif}.hero small{display:block;color:var(--mute);font-size:12px}.bar{height:10px;border-radius:6px;background:#2a1d12;overflow:hidden;margin:8px 0}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#c8762a,#ffcf7a);transition:width .3s}
+.note{font-size:13px;color:var(--mute)}.ok{color:var(--ok)}.bad{color:var(--bad)}#log{font:12px ui-monospace,monospace;color:var(--mute);max-height:140px;overflow:auto;white-space:pre-wrap}
+.dl{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}@media(max-width:480px){.hero{grid-template-columns:1fr auto}.hero>div:first-child{grid-column:1/-1}}
+</style></head><body><main>
+<h1>Hero Voice Studio</h1>
+<p class="sub">Records all six Empire Origins heroes with Google's Chirp 3 HD voices. All six heroes fit inside Google's free allowance. Your API key stays in this browser tab: it is only sent to Google and is never saved.</p>
+
+<div class="card"><h2>1 · Connect</h2>
+ <label for="key">Google Cloud API key</label>
+ <div class="row"><input id="key" type="password" autocomplete="off" placeholder="Paste your key"><button id="connect" class="primary">Connect</button></div>
+ <p class="note" id="acct">In console.cloud.google.com: turn on the <b>Cloud Text-to-Speech API</b>, then APIs &amp; Services → Credentials → Create credentials → API key.</p>
+</div>
+
+<div class="card" id="cfg" hidden><h2>2 · Pick each hero's voice</h2>
+ <label for="model">Voice model</label>
+ <select id="model"><option value="chirp3hd">Chirp 3 HD (free up to 1,000,000 characters a month)</option></select>
+ <p class="note" id="cost"></p>
+ <div id="heroes"></div>
+</div>
+
+<div class="card" id="run" hidden><h2>3 · Record</h2>
+ <p class="note">About 330 lines per hero. Keep this tab open; if it stops, press Record again and it carries on where it left off.</p>
+ <div class="row"><button id="go" class="primary">Record all six heroes</button><button id="stop" disabled>Pause</button></div>
+ <div class="bar"><i id="bar"></i></div><p class="note" id="prog">Not started.</p>
+ <div id="log"></div>
+</div>
+
+<div class="card" id="out" hidden><h2>4 · Send them to Claude</h2>
+ <p class="note">Download each hero's file and attach all six to your chat with Claude. Claude puts them into the game.</p>
+ <div class="dl" id="dls"></div>
+</div>
+</main>
+<script>
+"use strict";
+const API="https://texttospeech.googleapis.com/v1";
+const HEROES=[
+ {id:"h_imhotep",name:"Imhotep",role:"Builder · male",g:"male",pick:["en-GB-Chirp3-HD-Charon","en-GB-Chirp3-HD-Iapetus"]},
+ {id:"h_oren",name:"Oren",role:"Merchant · male",g:"male",pick:["en-US-Chirp3-HD-Puck","en-US-Chirp3-HD-Achird"]},
+ {id:"h_tiberius",name:"Tiberius",role:"General · male",g:"male",pick:["en-GB-Chirp3-HD-Algenib","en-GB-Chirp3-HD-Alnilam"]},
+ {id:"h_hypatia",name:"Hypatia",role:"Scholar · female",g:"female",pick:["en-GB-Chirp3-HD-Kore","en-GB-Chirp3-HD-Erinome"]},
+ {id:"h_ysolde",name:"Ysolde",role:"Guardian · female",g:"female",pick:["en-GB-Chirp3-HD-Gacrux","en-GB-Chirp3-HD-Vindemiatrix"]},
+ {id:"h_brenna",name:"Brenna",role:"Warrior · female",g:"female",pick:["en-US-Chirp3-HD-Aoede","en-US-Chirp3-HD-Leda"]}];
+const $=s=>document.querySelector(s);let KEY="",VOICES=[],LINES=null,stopReq=false,running=false;
+const log=t=>{const l=$("#log");l.textContent+=t+"\n";l.scrollTop=1e9};
+/* clips are kept in this browser (IndexedDB) so a stopped run resumes */
+const db=new Promise((ok,no)=>{const r=indexedDB.open("eovoice",1);r.onupgradeneeded=()=>r.result.createObjectStore("c");r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const dbGet=k=>db.then(d=>new Promise(ok=>{const q=d.transaction("c").objectStore("c").get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>ok(null)}));
+const dbPut=(k,v)=>db.then(d=>new Promise(ok=>{const t=d.transaction("c","readwrite");t.objectStore("c").put(v,k);t.oncomplete=ok;t.onerror=ok}));
+function linesFor(h){return LINES.common.concat(LINES.hero[h]||[])}
+function chars(){return HEROES.reduce((s,h)=>s+linesFor(h.id).reduce((a,[,t])=>a+t.length,0),0)}
+async function api(path,opt={}){const r=await fetch(API+path+(path.includes("?")?"&":"?")+"key="+encodeURIComponent(KEY),opt);if(!r.ok){let m=r.status+"";try{const j=await r.json();m+=" "+(j.error&&j.error.message||JSON.stringify(j).slice(0,160))}catch(e){}const e=new Error(m);e.status=r.status;throw e}return r}
+$("#connect").onclick=async()=>{KEY=$("#key").value.trim();if(!KEY)return;$("#acct").textContent="Connecting…";
+ try{const [vs,sub,ln]=await Promise.all([api("/voices").then(r=>r.json()),Promise.resolve(null),fetch("vlines.json").then(r=>r.json())]);
+  VOICES=(vs.voices||[]).filter(v=>/Chirp3-HD/.test(v.name)&&v.languageCodes.some(l=>/^en-(US|GB|AU)$/.test(l))).map(v=>({voice_id:v.name,lang:v.languageCodes[0],name:v.name.split("-").pop()+" ("+v.languageCodes[0]+")",labels:{gender:(v.ssmlGender||"").toLowerCase()}})).sort((a,b)=>a.voice_id<b.voice_id?-1:1);LINES=ln;const left=sub?sub.character_limit-sub.character_count:null;
+  $("#acct").innerHTML=`<span class="ok">Connected.</span> ${VOICES.length} voices available`+(sub?` · plan: ${sub.tier} · ${left.toLocaleString()} credits left this month`:"");
+  $("#acct").dataset.left=left??"";buildHeroes();cost();$("#cfg").hidden=$("#run").hidden=false;showDownloads()}
+ catch(e){$("#acct").innerHTML=`<span class="bad">Couldn't connect (${e.message}).</span> Check the key, and that the Cloud Text-to-Speech API is turned on for its project.`}};
+function buildHeroes(){const opts=VOICES.map(v=>`<option value="${v.voice_id}">${v.name} — ${v.labels.gender}</option>`).join("");
+ $("#heroes").innerHTML=HEROES.map(h=>`<div class="hero"><div><b>${h.name}</b><small>${h.role}</small></div><select data-h="${h.id}">${opts}</select><button data-p="${h.id}">▶</button></div>`).join("");
+ for(const h of HEROES){const s=$(`select[data-h=${h.id}]`),saved=localStorage.getItem("eov_"+h.id);
+  const want=saved&&VOICES.find(v=>v.voice_id===saved)||h.pick.map(n=>VOICES.find(v=>v.voice_id===n)).find(Boolean)||VOICES.find(v=>(v.labels||{}).gender===h.g);
+  if(want)s.value=want.voice_id;s.onchange=()=>{try{localStorage.setItem("eov_"+h.id,s.value)}catch(e){}}}
+ document.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>preview(b.dataset.p,b))}
+function cost(){const c=chars();$("#cost").innerHTML=`All six heroes: <b>${c.toLocaleString()} characters</b> of Google's 1,000,000 free each month. <span class="ok">Inside the free allowance.</span>`;return;const m=$("#model").value,need=0,left=0;
+ $("#cost").innerHTML=`All six heroes: ${c.toLocaleString()} characters ≈ <b>${need.toLocaleString()} credits</b> with this model.`+(left?(+left>=need?` <span class="ok">You have enough.</span>`:` <span class="bad">You have ${(+left).toLocaleString()} — not enough for all six. Pick Flash, or upgrade the plan for a month.</span>`):"")}
+$("#model").onchange=cost;
+async function tts(voice,text,model){for(let a=0;;a++){try{const r=await api("/text:synthesize",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({input:{text},voice:{languageCode:voice.split("-").slice(0,2).join("-"),name:voice},audioConfig:{audioEncoding:"MP3",sampleRateHertz:24000}})});
+  const j=await r.json(),bin=atob(j.audioContent),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u.buffer}
+ catch(e){if(a<5&&(e.status===429||e.status>=500||!e.status)){await new Promise(r=>setTimeout(r,1500*(a+1)));continue}throw e}}}
+let pa=null;async function preview(h,b){const hero=HEROES.find(x=>x.id===h),v=$(`select[data-h=${h}]`).value;b.disabled=true;
+ try{const t=`Welcome, chief. I'm ${hero.name}, and I'll guide you through everything. Tap any building and I'll tell you what it does.`;const buf=await tts(v,t,$("#model").value);pa&&pa.pause();pa=new Audio(URL.createObjectURL(new Blob([buf],{type:"audio/mpeg"})));pa.play()}
+ catch(e){log("preview failed: "+e.message)}b.disabled=false}
+$("#stop").onclick=()=>{stopReq=true;$("#stop").disabled=true};
+$("#go").onclick=async()=>{if(running)return;running=true;stopReq=false;$("#go").disabled=true;$("#stop").disabled=false;const model=$("#model").value;
+ const jobs=[];for(const h of HEROES){const v=$(`select[data-h=${h.id}]`).value;for(const [k,t] of linesFor(h.id))jobs.push({h:h.id,v,k,t,ck:`${h.id}|${v}|${model}|${k}`})}
+ let done=0,fail=0;const total=jobs.length;const upd=()=>{$("#bar").style.width=(100*done/total)+"%";$("#prog").textContent=`${done} of ${total} lines recorded${fail?` · ${fail} failed (press Record again to retry)`:""}`};
+ for(const j of jobs)if(await dbGet(j.ck))done++;upd();let i=0;
+ const worker=async()=>{while(!stopReq&&i<jobs.length){const j=jobs[i++];if(await dbGet(j.ck))continue;
+  try{const b=await tts(j.v,j.t,model);await dbPut(j.ck,b);done++}catch(e){fail++;log(`${j.h}: ${e.message} — "${j.t.slice(0,40)}…"`);if(e.status===401||e.status===403||/quota|billing|disabled/i.test(e.message)){stopReq=true;log("Stopped: "+e.message)}}upd()}};
+ await Promise.all([worker(),worker(),worker()]);running=false;$("#go").disabled=false;$("#stop").disabled=true;
+ if(done===total){log("All lines recorded.");}showDownloads()};
+async function showDownloads(){if(!LINES)return;const model=$("#model").value,box=$("#dls");box.innerHTML="";let any=false;
+ for(const h of HEROES){const v=$(`select[data-h=${h.id}]`)?.value;if(!v)continue;const L=linesFor(h.id);let n=0;for(const [k] of L)if(await dbGet(`${h.id}|${v}|${model}|${k}`))n++;
+  const b=document.createElement("button");b.textContent=`⬇ ${h.name} (${n}/${L.length})`;b.disabled=n<L.length;if(n===L.length)any=true;b.onclick=()=>pack(h,v,model,L,b);box.appendChild(b)}
+ $("#out").hidden=false}
+async function pack(h,v,model,L,b){b.disabled=true;const parts=[],ix={};let off=0;for(const [k] of L.slice().sort((a,c)=>a[0]<c[0]?-1:1)){const buf=await dbGet(`${h.id}|${v}|${model}|${k}`);if(!buf)continue;parts.push(buf);ix[k]=[off,buf.byteLength];off+=buf.byteLength}
+ /* one file per hero: "EOV1", index length, index JSON, then the clips */
+ const j=new TextEncoder().encode(JSON.stringify(ix)),hd=new Uint8Array(8);hd.set([69,79,86,49]);new DataView(hd.buffer).setUint32(4,j.length);
+ const blob=new Blob([hd,j,...parts],{type:"application/octet-stream"});
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`${h.id}.eov`;document.body.appendChild(a);a.click();a.remove();b.disabled=false}
+</script></body></html>
