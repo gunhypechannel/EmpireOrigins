@@ -20,7 +20,7 @@ EO chapter Wardens: 1 Ancient Guardians · 2 OMEGA‑0, the First Cube · 3 the 
 ## The cross-game hook (UDF side still to build)
 The "Continue in Ultra Deep Field" button opens:
 
-`https://gunhypechannel.github.io/Ultradeepfield/?eo=EO1-HC-H------a8aaa`
+`https://gunhypechannel.github.io/Ultradeepfield/?eo=EO1-HC-H-------a8aaa`
 
 - `EO1-`: the format version.
 - 10 characters, one per chapter of the current cycle: `H` held, `C` cracked, `-` not played yet.
