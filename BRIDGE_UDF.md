@@ -49,3 +49,43 @@ EO now runs on UDF's v737 clock (`echo.js`, computed, so no live sync is needed)
 - Every real empire keeps up to 3 invaders 5–12 tiles from its city, topped up in waves every 8 h. They are small fighters scaled to the empire's age, not world bosses.
 - Each kill: +3 echo season points, +8 Starshards. Kill chests at 5 / 10 / 20 / 35 (the last three add wheel tickets).
 - Invaders leave when the season ends. The owner can preview either invasion from the Events page (test only).
+
+## v143: everything on the Empire Origins side of the bridge
+
+### Built here
+- **Healers' Tent** (`heal.js`), the echo of UDF's Repair Yard: troops beaten by monsters, invaders, world bosses or gods come home wounded and rejoin by themselves for free (10 min + 3 s per soldier, max 2 h). Fights between empires keep the Healer Hut rules.
+- **The Hive Spores** (Season of the Starhive): third invasion, sculpted `hivepod` (stationary, doesn't roam).
+- **Raid week:** in the 3rd week of each invasion season the weekly boss is the invasion's own giant: **The Shell Matriarch** (comes with 4 Matriarch's Brood), **The Mirror Gate** (mirror waves every 4 h instead of 8 while it stands), or the **Brood Matriarch** (Hive). +10 echo points for everyone who fought it.
+- **The Observatory** (`bridge.js`, Events page): UDF's season, live event, hunted titan, next Ten Seals finale and Eclipse (computed from the shared calendar, no server), the player's legacy, the Founder's Vault and the bridge code.
+- **The Founder's Vault:** Starshards put in leave EO for good (minimum 50, multiples of 10) and are carried in the code as `vs` (lifetime total) with `vn` (deposit counter).
+- **The launch:** in the Space Age, "Launch to the Deep Field" plays the finale, the Advisor speaks ("You remembered. You took me with you…"), and `launched` is stamped into the code.
+- **The Advisor's new lines** (launch, observatory, vault, invasions, raids) speak through the Echo Stone with her recorded voice. An ElevenLabs version can replace any line: put `<key>.mp3` in `art/voice/advisor/` and list it in `art/voice/advisor/manifest.json` as `{"launch":"launch.mp3",…}`.
+
+### The EO2 code (what UDF reads)
+`?eo=EO2-<payload>-<check>`
+- `payload`: base64url of a JSON object:
+  - `v` 2
+  - `n` empire name
+  - `id` short hash of the EO player id (base 36)
+  - `c` 10 chapters of the current cycle (`H` held, `C` cracked, `-` not played)
+  - `s` 5 seal strengths ÷ 10 in base 36 (flame, light, root, storm, void)
+  - `e` age reached (0 Stone … 9 Space)
+  - `l` launch time in minutes (base 36), or 0
+  - `vs` Starshards in the Founder's Vault, lifetime
+  - `vn` vault deposits so far
+  - `k` invaders beaten, lifetime
+  - `r` raid giants fought and felled
+  - `t` code time in minutes (base 36)
+- `check`: FNV-1a 32-bit of `"udf-eo-bridge|" + JSON` mod 36^4, base 36, 4 characters. It only stops casual edits: anyone can read the salt in the page, so UDF must cap what a code can give.
+- EO1 codes (`EO1-<10 chapters>-<5 seals>`) are still valid and mean the same first two fields.
+
+### UDF side: what to build there
+1. **Read `?eo=`** on load (EO1 or EO2), check the checksum, keep it on the account (`eo_legacy`: code, id, best values seen), and strip it from the URL.
+2. **Founder's Legacy screen**, opened by the Advisor: "In the age of empires, the Seal of Flame held…". Suggested rewards (once per EO id):
+   - each seal held → a relic or title; all 10 → a commander portrait
+   - `l` launched → "First Ship" starter ship and a profile badge
+   - age reached → a small starter pack scaled by `e`
+   - `k`/`r` → a medal tier
+3. **Void Shards from the vault:** credit `(vs − vs already credited) ÷ 10` Void Shards (or whatever rate fits your OGame-like prices), stored per EO id. Cap it per season (e.g. 500 Void Shards), because codes can be faked.
+4. **One account for both games (later):** give the EO website a Supabase sign-in on the same project ("Ultradeepfield"). Then EO writes its legacy row directly and the code is only a fallback for the claude.ai version.
+5. **Shared remembered results (optional, with 4):** a public read-only table of EO seal outcomes per chapter, so UDF's codex can say "the First Eclipse: 7 seals held".
