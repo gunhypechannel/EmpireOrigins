@@ -40,3 +40,12 @@ EO now runs on UDF's v737 clock (`echo.js`, computed, so no live sync is needed)
 - **Echo Seasons** mirror UDF seasons: points from every event, 4 chests (10/25/45/70), op `echoSea`.
 - Dec 7, 2026 is UDF's prologue (Season of the Countdown). Season of the Cube starts Feb 1, 2027; Season of the Mimic Apr 26, 2027.
 - **Still needed on the UDF side:** reading `?eo=EO1-…` codes.
+
+## Seasonal invasions (v141)
+
+`invasion.js` + `invasion_ui.js`. Echoes of UDF's invader seasons:
+- **Season of the Cube → The Shell Raiders** (Shell Raider / Shell Brute). First: 1 Feb 2027.
+- **Season of the Mimic → The Mirror Plague** (Mirror Wolf, Mirror Basilisk, …). A broken mirror has a 35% chance to leave a Mirror Shard (half health). First: 26 Apr 2027.
+- Every real empire keeps up to 3 invaders 5–12 tiles from its city, topped up in waves every 8 h. They are small fighters scaled to the empire's age, not world bosses.
+- Each kill: +3 echo season points, +8 Starshards. Kill chests at 5 / 10 / 20 / 35 (the last three add wheel tickets).
+- Invaders leave when the season ends. The owner can preview either invasion from the Events page (test only).
