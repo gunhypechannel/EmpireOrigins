@@ -1,0 +1,3 @@
+battle.mp3 / battle.json: impact, RPG and sci-fi sound effects by Kenney (www.kenney.nl), CC0 1.0 (public domain).
+Trimmed, loudness-matched and packed into one sprite for Empire Origins. Index: category_n -> [byte offset, byte length].
+cries.mp3: recorded battle cries (see repo history).
